@@ -22,38 +22,18 @@ fun findNodeById(root: AccessibilityNodeInfo, childName: String): AccessibilityN
     return null
 }
 
-fun useGestureClick(nodes: ArrayList<AccessibilityNodeInfo>, accessibilityService: AccessibilityService) {
-    if (nodes.count() == 0) return
-    val node = nodes[0]
-    val rect = Rect()
-    node.getBoundsInScreen(rect)
-    Log.d("Gesture", "边框 $rect 点击中点 X:${rect.centerX()} Y:${rect.centerY()}")
-    val x = rect.centerX().toFloat()
-    val y = rect.centerY().toFloat()
-    if (x < 0 || y < 0) {
-        Log.d("Gesture", "超出屏幕范围，取消点击")
-        return
+val AccessibilityNodeInfo.textOrDesc: CharSequence
+    get() {
+        var childText = this.contentDescription
+        if (childText == null) childText = this.text
+        return childText
     }
-
-    val path = Path()
-    path.moveTo(x, y)
-
-    val builder = GestureDescription.Builder()
-    val gestureDescription = builder
-        .addStroke(GestureDescription.StrokeDescription(path, 100, 50))
-        .build()
-    accessibilityService.dispatchGesture(gestureDescription, object : AccessibilityService.GestureResultCallback() {
-        override fun onCompleted(gestureDescription: GestureDescription) {
-            super.onCompleted(gestureDescription)
-            Log.d("Gesture", "点击坐标成功 X:${rect.centerX()} Y:${rect.centerY()}")
-            nodes.remove(node)
-            useGestureClick(nodes, accessibilityService)
-        }
-    }, null)
-}
 
 class AntService : AccessibilityService() {
     private val TAG = javaClass.name
+    private var title: CharSequence = ""
+    private var isClicking = false
+    private var clickNodeList = ArrayList<AccessibilityNodeInfo>()
 
     companion object {
         var mService: AntService? = null
@@ -71,31 +51,42 @@ class AntService : AccessibilityService() {
         mService = this
     }
 
+    private val nameList = listOf("蚂蚁森林", "好友排行榜")
+    private val descList = listOf("地图", "成就", "通知", "背包", "任务", "攻略", "发消息", "弹幕", "浇水")
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-//        val eventType = event.eventType
-//        val className = event.className
-        Log.v(TAG, "${eventTypeToString(event.eventType)} :: ${event.className}")
+//        Log.v(TAG, "${eventTypeToString(event.eventType)} :: ${event.className}")
         val node: AccessibilityNodeInfo? = event.source
         if (node != null) {
+            val h5TvTitle = findNodeById(node, "com.alipay.mobile.nebula:id/h5_tv_title") ?: return
+            if (h5TvTitle.textOrDesc == "") return
+            if (this.title != h5TvTitle.textOrDesc) {
+                this.title = h5TvTitle.textOrDesc
+//                this.isClicking = false
+                this.clickNodeList = ArrayList<AccessibilityNodeInfo>()
+            }
+            if (this.isClicking) return
+            if (h5TvTitle.textOrDesc == "好友排行榜") return
+            Log.d(TAG, "当前页面为：<${h5TvTitle.textOrDesc}>")
             val jBarrierFree: AccessibilityNodeInfo? = findNodeById(node, "J_barrier_free")
             if (jBarrierFree != null) {
-                val ballList = ArrayList<AccessibilityNodeInfo>()
-                val descList = listOf("地图", "成就", "通知", "背包", "任务", "攻略", "发消息", "弹幕", "浇水")
+                Log.d(TAG, "共找到${jBarrierFree.childCount}个节点")
                 for (i in 0 until jBarrierFree.childCount) {
                     val child: AccessibilityNodeInfo = jBarrierFree.getChild(i) ?: continue
-                    if (child.contentDescription !in descList
-                        && ((child.contentDescription.length >= 2 && child.contentDescription.subSequence(0, 2) == "收集")
-                                || child.contentDescription == " ")
-                    ) {
-                        Log.d(TAG, "第 $i 个节点 Desc：<${child.contentDescription}>————找到发现能量球")
+                    val childText = child.textOrDesc
+                    if (childText == "" || childText in this.descList) {
+                        Log.d(TAG, "第 $i 个节点被忽略：<$childText>")
+                        continue
+                    }
+                    if ((childText.length >= 2 && childText.subSequence(0, 2) == "收集") || childText == " ") {
+                        Log.d(TAG, "第 $i 个节点被选中：<$childText>")
                         val ball: AccessibilityNodeInfo? = jBarrierFree.getChild(i)
-                        if (ball != null) ballList.add(ball)
-                    } else {
-                        Log.d(TAG, "第 $i 个节点 Desc：<${child.contentDescription}>")
+                        if (ball != null) this.clickNodeList.add(ball)
                     }
                 }
-                useGestureClick(ballList, this)
+                if (this.clickNodeList.count() > 0)
+                    this.clickNodes()
             } else {
                 Log.d(TAG, "没有找到：J_barrier_free")
             }
@@ -115,5 +106,44 @@ class AntService : AccessibilityService() {
         super.onDestroy()
         Log.d(TAG, "无障碍服务已关闭")
         mService = null
+    }
+
+    private fun clickNodes() {
+        if (this.clickNodeList.count() == 0) {
+            this.isClicking = false
+            Log.d("$TAG Gesture", "开始点击元素")
+            return
+        }
+        if(!this.isClicking) {
+            this.isClicking = true
+            Log.d("$TAG Gesture", "结束点击元素")
+        }
+        val node = this.clickNodeList[0]
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        Log.d("$TAG Gesture", "申请点击 元素边框 $rect 元素中心 X:${rect.centerX()} Y:${rect.centerY()}")
+        val x = rect.centerX().toFloat()
+        val y = rect.centerY().toFloat()
+        if (x < 0 || y < 0) {
+            Log.d("$TAG Gesture", "超出屏幕范围，取消点击")
+            return
+        }
+
+        val path = Path()
+        path.moveTo(x, y)
+
+        val builder = GestureDescription.Builder()
+        val gestureDescription = builder
+            .addStroke(GestureDescription.StrokeDescription(path, 100, 50))
+            .build()
+        val that = this
+        this.dispatchGesture(gestureDescription, object : AccessibilityService.GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription) {
+                super.onCompleted(gestureDescription)
+                Log.d("$TAG Gesture", "点击元素中心成功 X:${rect.centerX()} Y:${rect.centerY()}")
+                that.clickNodeList.remove(node)
+                that.clickNodes()
+            }
+        }, null)
     }
 }
