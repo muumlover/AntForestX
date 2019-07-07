@@ -6,7 +6,6 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityEvent.eventTypeToString
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.*
 
@@ -26,13 +25,15 @@ val AccessibilityNodeInfo.textOrDesc: CharSequence
     get() {
         var childText = this.contentDescription
         if (childText == null) childText = this.text
+        if (childText == null) return ""
         return childText
     }
 
 class AntService : AccessibilityService() {
     private val TAG = javaClass.name
-    private var title: CharSequence = ""
+    private var titleNow: CharSequence = ""
     private var isClicking = false
+    private var clickFinish = false
     private var clickNodeList = ArrayList<AccessibilityNodeInfo>()
 
     companion object {
@@ -57,40 +58,35 @@ class AntService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 //        Log.v(TAG, "${eventTypeToString(event.eventType)} :: ${event.className}")
-        val node: AccessibilityNodeInfo? = event.source
-        if (node != null) {
-            val h5TvTitle = findNodeById(node, "com.alipay.mobile.nebula:id/h5_tv_title") ?: return
-            if (h5TvTitle.textOrDesc == "") return
-            if (this.title != h5TvTitle.textOrDesc) {
-                this.title = h5TvTitle.textOrDesc
-//                this.isClicking = false
-                this.clickNodeList = ArrayList<AccessibilityNodeInfo>()
+        val node: AccessibilityNodeInfo = event.source ?: return
+        node.refresh()
+        val h5TvTitle = findNodeById(node, "com.alipay.mobile.nebula:id/h5_tv_title") ?: return
+        h5TvTitle.refresh()
+        if (h5TvTitle.textOrDesc == "") return
+        if (this.titleNow == h5TvTitle.textOrDesc) if (this.isClicking || this.clickFinish) return
+        else this.clickNodeList.clear()
+        this.titleNow = h5TvTitle.textOrDesc
+        this.clickFinish = false
+        if (!h5TvTitle.textOrDesc.endsWith("蚂蚁森林")) return
+        Log.d(TAG, "当前页面为：<${h5TvTitle.textOrDesc}>")
+        val jBarrierFree: AccessibilityNodeInfo = findNodeById(node, "J_barrier_free") ?: return
+        jBarrierFree.refresh()
+        Log.d(TAG, "共找到${jBarrierFree.childCount}个节点")
+        for (i in 0 until jBarrierFree.childCount) {
+            val child: AccessibilityNodeInfo = jBarrierFree.getChild(i) ?: continue
+            val childText = child.textOrDesc
+            if (childText == "" || childText in this.descList) {
+                Log.d(TAG, "第 $i 个节点被忽略：<$childText>")
+                continue
             }
-            if (this.isClicking) return
-            if (h5TvTitle.textOrDesc == "好友排行榜") return
-            Log.d(TAG, "当前页面为：<${h5TvTitle.textOrDesc}>")
-            val jBarrierFree: AccessibilityNodeInfo? = findNodeById(node, "J_barrier_free")
-            if (jBarrierFree != null) {
-                Log.d(TAG, "共找到${jBarrierFree.childCount}个节点")
-                for (i in 0 until jBarrierFree.childCount) {
-                    val child: AccessibilityNodeInfo = jBarrierFree.getChild(i) ?: continue
-                    val childText = child.textOrDesc
-                    if (childText == "" || childText in this.descList) {
-                        Log.d(TAG, "第 $i 个节点被忽略：<$childText>")
-                        continue
-                    }
-                    if ((childText.length >= 2 && childText.subSequence(0, 2) == "收集") || childText == " ") {
-                        Log.d(TAG, "第 $i 个节点被选中：<$childText>")
-                        val ball: AccessibilityNodeInfo? = jBarrierFree.getChild(i)
-                        if (ball != null) this.clickNodeList.add(ball)
-                    }
-                }
-                if (this.clickNodeList.count() > 0)
-                    this.clickNodes()
-            } else {
-                Log.d(TAG, "没有找到：J_barrier_free")
+            if ((childText.length >= 2 && childText.subSequence(0, 2) == "收集") || childText == " ") {
+                Log.d(TAG, "第 $i 个节点被选中：<$childText>")
+                val ball: AccessibilityNodeInfo? = jBarrierFree.getChild(i)
+                if (ball != null) this.clickNodeList.add(ball)
             }
         }
+        if (this.clickNodeList.count() > 0) this.clickNodes()
+        else jBarrierFree.refresh()
 
 
 //        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
@@ -111,12 +107,13 @@ class AntService : AccessibilityService() {
     private fun clickNodes() {
         if (this.clickNodeList.count() == 0) {
             this.isClicking = false
-            Log.d("$TAG Gesture", "开始点击元素")
+            Log.d("$TAG Gesture", "结束点击元素")
             return
         }
-        if(!this.isClicking) {
+        if (!this.isClicking) {
             this.isClicking = true
-            Log.d("$TAG Gesture", "结束点击元素")
+            this.clickFinish = true
+            Log.d("$TAG Gesture", "开始点击元素")
         }
         val node = this.clickNodeList[0]
         val rect = Rect()
