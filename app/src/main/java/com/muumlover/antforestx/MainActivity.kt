@@ -1,9 +1,7 @@
 package com.muumlover.antforestx
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.provider.Settings
 import android.support.v7.app.AppCompatActivity
@@ -13,7 +11,6 @@ import android.util.Log
 
 class MainActivity : AppCompatActivity() {
     private val TAG = javaClass.name
-    private val REQUEST_MEDIA_PROJECTION = 1001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,7 +31,9 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(Settings.ACTION_SETTINGS))
             }
         }
-        requestCapturePermission()
+
+        Log.d(TAG, "请求屏幕截图权限")
+        CaptureManager.fireScreenCaptureIntent(this@MainActivity)
     }
 
     /**
@@ -74,15 +73,6 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    private fun requestCapturePermission() {
-        Log.d(TAG, "请求屏幕截图权限")
-        val mediaProjectionManager: MediaProjectionManager =
-            getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        startActivityForResult(
-            mediaProjectionManager.createScreenCaptureIntent(),
-            REQUEST_MEDIA_PROJECTION
-        )
-    }
 
     override fun onActivityResult(
         requestCode: Int,
@@ -90,9 +80,11 @@ class MainActivity : AppCompatActivity() {
         data: Intent?
     ) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_MEDIA_PROJECTION) {
-            if (resultCode == Activity.RESULT_OK && data != null) {
-                Log.d(TAG, "已经获取到屏幕截图权限")
+        when (requestCode) {
+            CaptureManager.REQUEST_MEDIA_PROJECTION -> {
+                if (CaptureManager.handleActivityResult(requestCode, resultCode, data)) {
+                    Log.d(TAG, "已经获取到屏幕截图权限")
+                }
             }
         }
     }
