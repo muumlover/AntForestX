@@ -7,33 +7,62 @@ import android.provider.Settings
 import android.support.v7.app.AppCompatActivity
 import android.text.TextUtils
 import android.util.Log
+import android.view.View
+import android.widget.Button
 
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), View.OnClickListener {
     private val TAG = javaClass.name
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        initView()
 
-        if (!hasServicePermission(
-                applicationContext,
-                AntService::class.java
-            ) && !AntService.isStart()
-        ) {
-            try {
-                Log.d(TAG, "尝试跳转到无障碍设置页面")
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            } catch (e: Exception) {
-                Log.d(TAG, "无法跳转到无障碍设置页面")
-                e.printStackTrace()
-                Log.d(TAG, "跳转到系统设置页面")
-                startActivity(Intent(Settings.ACTION_SETTINGS))
+    }
+
+    private fun initView() {
+        val button3 = findViewById<Button>(R.id.button3)
+        val button4 = findViewById<Button>(R.id.button4)
+        val button5 = findViewById<Button>(R.id.button5)
+
+        button3.setOnClickListener(this)
+        button4.setOnClickListener(this)
+        button5.setOnClickListener(this)
+    }
+
+    override fun onClick(v: View?) {
+        when (v?.id) {
+            R.id.button3 -> {
+                if (!hasServicePermission(
+                        applicationContext,
+                        AntService::class.java
+                    ) && !AntService.isStart()
+                ) {
+                    try {
+                        Log.d(TAG, "尝试跳转到无障碍设置页面")
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    } catch (e: Exception) {
+                        Log.d(TAG, "无法跳转到无障碍设置页面")
+                        e.printStackTrace()
+                        Log.d(TAG, "跳转到系统设置页面")
+                        startActivity(Intent(Settings.ACTION_SETTINGS))
+                    }
+                }
+            }
+            R.id.button4 -> {
+                Log.d(TAG, "请求屏幕截图权限")
+                CaptureManager.fireScreenCaptureIntent(this@MainActivity)
+            }
+            R.id.button5 -> {
+                Log.d(TAG, "请求屏幕截图权限")
+                val bmp_image = CaptureManager.getCapture()
+                if (bmp_image == null) {
+                    Log.d(TAG, "没有获取到截屏")
+                    return
+                }
             }
         }
-
-        Log.d(TAG, "请求屏幕截图权限")
-        CaptureManager.fireScreenCaptureIntent(this@MainActivity)
     }
 
     /**

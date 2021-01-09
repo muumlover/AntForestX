@@ -16,7 +16,6 @@ import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Core.minMaxLoc
 import org.opencv.core.Mat
-import org.opencv.imgcodecs.Imgcodecs
 import org.opencv.imgproc.Imgproc.matchTemplate
 import java.io.FileNotFoundException
 import java.io.InputStream
@@ -136,9 +135,16 @@ class AntService : AccessibilityService() {
         val templ = Mat()
         Utils.bitmapToMat(bmp, templ)
 
-        val image = Imgcodecs.imread("raw/ball.png")
+        val bmp_image = CaptureManager.getCapture()
+        if (bmp_image == null) {
+            Log.d(TAG, "没有获取到截屏")
+            return
+        }
+        val image = Mat()
+        Utils.bitmapToMat(bmp_image, image)
+
         val result = Mat()
-        matchTemplate(templ, templ, result, 0)
+        matchTemplate(image, templ, result, 0)
         val location = minMaxLoc(result)
 
         val jBarrierFree: AccessibilityNodeInfo = findNodeById(node, "J_barrier_free") ?: return
