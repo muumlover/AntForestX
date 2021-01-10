@@ -10,9 +10,6 @@ import android.net.Uri
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import org.opencv.android.BaseLoaderCallback
-import org.opencv.android.LoaderCallbackInterface
-import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Core.minMaxLoc
 import org.opencv.core.Mat
@@ -42,7 +39,7 @@ val AccessibilityNodeInfo.textOrDesc: CharSequence
         return childText
     }
 
-class AntService : AccessibilityService() {
+class AntForestService : AccessibilityService() {
     private val TAG = javaClass.name
     private var titleNow: CharSequence = ""
     private var isClicking = false
@@ -50,13 +47,13 @@ class AntService : AccessibilityService() {
     private var clickNodeList = ArrayList<AccessibilityNodeInfo>()
 
     companion object {
-        var mService: AntService? = null
+        var mForestService: AntForestService? = null
 
         /**
          * 辅助功能是否启动
          */
         fun isStart(): Boolean {
-            return mService != null
+            return mForestService != null
         }
     }
 
@@ -64,44 +61,21 @@ class AntService : AccessibilityService() {
         super.onServiceConnected()
 
         Log.d(TAG, "无障碍服务启动成功")
-        mService = this
-        if (!OpenCVLoader.initDebug()) {
-            Log.d(
-                "OpenCV",
-                "Internal OpenCV library not found. Using OpenCV Manager for initialization"
-            );
-            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
-        } else {
-            Log.d("OpenCV", "OpenCV library found inside package. Using it!");
-            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
-        }
+        mForestService = this
     }
 
     override fun onInterrupt() {
         Log.d(TAG, "无障碍服务被中断")
-        mService = null
+        mForestService = null
 //        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "无障碍服务已关闭")
-        mService = null
+        mForestService = null
     }
 
-    private val mLoaderCallback: BaseLoaderCallback = object : BaseLoaderCallback(this) {
-        override fun onManagerConnected(status: Int) {
-            when (status) {
-                LoaderCallbackInterface.SUCCESS -> {
-                    Log.i("OpenCV", "OpenCV loaded successfully")
-                    var imageMat = Mat()
-                }
-                else -> {
-                    super.onManagerConnected(status)
-                }
-            }
-        }
-    }
 
     private val nameList = listOf("蚂蚁森林", "好友排行榜")
     private val descList = listOf("地图", "成就", "通知", "背包", "任务", "攻略", "发消息", "弹幕", "浇水")
@@ -135,17 +109,15 @@ class AntService : AccessibilityService() {
         val templ = Mat()
         Utils.bitmapToMat(bmp, templ)
 
-        val bmp_image = CaptureManager.getCapture()
-        if (bmp_image == null) {
-            Log.d(TAG, "没有获取到截屏")
-            return
-        }
+        val bmp_image = CaptureService.getScreenShot()
         val image = Mat()
         Utils.bitmapToMat(bmp_image, image)
 
         val result = Mat()
         matchTemplate(image, templ, result, 0)
         val location = minMaxLoc(result)
+
+        Log.d(TAG, "minLoc${location.minLoc} maxLoc${location.maxLoc}")
 
         val jBarrierFree: AccessibilityNodeInfo = findNodeById(node, "J_barrier_free") ?: return
         jBarrierFree.refresh()
