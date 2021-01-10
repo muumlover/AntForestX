@@ -2,20 +2,21 @@ package com.muumlover.antforestx
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Path
-import android.graphics.Rect
-import android.net.Uri
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import org.opencv.android.Utils
 import org.opencv.core.Core.minMaxLoc
 import org.opencv.core.Mat
+import org.opencv.core.Point
+import org.opencv.imgproc.Imgproc
 import org.opencv.imgproc.Imgproc.matchTemplate
-import java.io.FileNotFoundException
-import java.io.InputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.util.*
 
 
@@ -80,6 +81,14 @@ class AntForestService : AccessibilityService() {
     private val nameList = listOf("蚂蚁森林", "好友排行榜")
     private val descList = listOf("地图", "成就", "通知", "背包", "任务", "攻略", "发消息", "弹幕", "浇水")
 
+    fun test(image: Mat, templ: Mat, method: Int) {
+        val result = Mat()
+        matchTemplate(image, templ, result, method)
+        val location = minMaxLoc(result)
+        Log.d(TAG, "minLoc ${location.minLoc} ${location.minVal}")
+        Log.d(TAG, "maxLoc ${location.maxLoc} ${location.maxVal}")
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 //        Log.v(TAG, "${eventTypeToString(event.eventType)} :: ${event.className}")
@@ -96,94 +105,82 @@ class AntForestService : AccessibilityService() {
         if (!h5TvTitle.textOrDesc.endsWith("蚂蚁森林")) return
         Log.d(TAG, "当前页面为：<${h5TvTitle.textOrDesc}>")
 
-        var stream: InputStream? = null
-        val uri: Uri = Uri.parse("android.resource://" + packageName + "/" + R.raw.ball)
-        try {
-            stream = contentResolver.openInputStream(uri)
-        } catch (e: FileNotFoundException) {
-            e.printStackTrace()
-        }
-        val bmpFactoryOptions: BitmapFactory.Options = BitmapFactory.Options()
-        bmpFactoryOptions.inPreferredConfig = Bitmap.Config.ARGB_8888
-        val bmp: Bitmap = BitmapFactory.decodeStream(stream, null, bmpFactoryOptions)
-        val templ = Mat()
-        Utils.bitmapToMat(bmp, templ)
+        val radius: SharedPreferences = getSharedPreferences("Radius", Context.MODE_PRIVATE)
+        val minRadius: Int = radius.getInt("minRadius", 60)
+        val maxRadius: Int = radius.getInt("maxRadius", 70)
 
-        val bmp_image = CaptureService.getScreenShot()
-        val image = Mat()
-        Utils.bitmapToMat(bmp_image, image)
-
-        val result = Mat()
-        matchTemplate(image, templ, result, 0)
-        val location = minMaxLoc(result)
-
-        Log.d(TAG, "minLoc${location.minLoc} maxLoc${location.maxLoc}")
-
-        val jBarrierFree: AccessibilityNodeInfo = findNodeById(node, "J_barrier_free") ?: return
-        jBarrierFree.refresh()
-        Log.d(TAG, "共找到${jBarrierFree.childCount}个节点")
-        for (i in 0 until jBarrierFree.childCount) {
-            val child: AccessibilityNodeInfo = jBarrierFree.getChild(i) ?: continue
-            val childText = child.textOrDesc
-            if (childText == "" || childText in this.descList) {
-                Log.d(TAG, "第 $i 个节点被忽略：<$childText>")
-                continue
+        val screen = getScreen()
+        Imgproc.cvtColor(screen, screen, Imgproc.COLOR_BGR2GRAY);
+        val circles = Mat()
+        Imgproc.HoughCircles(
+            screen,
+            circles,
+            Imgproc.HOUGH_GRADIENT,
+            1.0,
+            10.0,
+            100.0,
+            30.0,
+            minRadius,
+            maxRadius
+        )
+        for (i in 0 until circles.cols()) {
+            val vCircle = circles[0, i]
+            val center = Point(vCircle[0], vCircle[1])
+            if (center.y < 400 || center.y > 900) continue
+            clickNodes(center.x, center.y) {
             }
-            if ((childText.length >= 2 && childText.subSequence(
-                    0,
-                    20
-                ) == "收集") || childText == " "
-            ) {
-                Log.d(TAG, "第 $i 个节点被选中：<$childText>")
-                val ball: AccessibilityNodeInfo? = jBarrierFree.getChild(i)
-                if (ball != null) this.clickNodeList.add(ball)
-            }
+            Thread.sleep(1000)
         }
-        if (this.clickNodeList.count() > 0) this.clickNodes()
-        else jBarrierFree.refresh()
-
-
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    private fun clickNodes() {
-        if (this.clickNodeList.count() == 0) {
-            this.isClicking = false
-            Log.d("$TAG Gesture", "结束点击元素")
-            return
-        }
-        if (!this.isClicking) {
-            this.isClicking = true
-            this.clickFinish = true
-            Log.d("$TAG Gesture", "开始点击元素")
-        }
-        val node = this.clickNodeList[0]
-        val rect = Rect()
-        node.getBoundsInScreen(rect)
-        Log.d("$TAG Gesture", "申请点击 元素边框 $rect 元素中心 X:${rect.centerX()} Y:${rect.centerY()}")
-        val x = rect.centerX().toFloat()
-        val y = rect.centerY().toFloat()
+    private fun getScreen(): Mat {
+        val screenBitmap = CaptureService.getScreenShot()
+        val screenBitmapHalf = cropBitmap(screenBitmap)
+
+        val dir: File = getDir("screen", Context.MODE_PRIVATE)
+        val file = File(dir, "lastBitmap.png")
+        val fos = FileOutputStream(file)
+        screenBitmapHalf?.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+        fos.close();
+
+        val screen = Mat()
+        Utils.bitmapToMat(screenBitmapHalf, screen)
+        return screen
+    }
+
+    /**
+     * 裁剪
+     *
+     * @param bitmap 原图
+     * @return 裁剪后的图像
+     */
+    private fun cropBitmap(bitmap: Bitmap): Bitmap? {
+        // 得到图片的宽，高
+        val w = bitmap.width
+        val h = bitmap.height / 2
+        return Bitmap.createBitmap(bitmap, 0, 0, w, h, null, false)
+    }
+
+    private fun clickNodes(x: Double, y: Double, callback: () -> Unit) {
         if (x < 0 || y < 0) {
             Log.d("$TAG Gesture", "超出屏幕范围，取消点击")
             return
         }
 
         val path = Path()
-        path.moveTo(x, y)
+        path.moveTo(x.toFloat(), y.toFloat())
 
         val builder = GestureDescription.Builder()
         val gestureDescription = builder
             .addStroke(GestureDescription.StrokeDescription(path, 100, 50))
             .build()
-        val that = this
         this.dispatchGesture(
             gestureDescription,
             object : AccessibilityService.GestureResultCallback() {
                 override fun onCompleted(gestureDescription: GestureDescription) {
                     super.onCompleted(gestureDescription)
-                    Log.d("$TAG Gesture", "点击元素中心成功 X:${rect.centerX()} Y:${rect.centerY()}")
-                    that.clickNodeList.remove(node)
-                    that.clickNodes()
+                    Log.d("$TAG Gesture", "click X:${x} Y:${y}")
+                    callback()
                 }
             },
             null

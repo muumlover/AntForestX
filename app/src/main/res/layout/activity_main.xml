@@ -58,6 +58,40 @@
                     android:layout_height="wrap_content"
                     android:text="打开蚂蚁森林" />
 
+            <SeekBar
+                    android:id="@+id/seekBarMin"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:min="50"
+                    android:progress="0" />
+
+            <SeekBar
+                    android:id="@+id/seekBarMax"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:min="50"
+                    android:progress="0" />
+
+            <TextView
+                    android:id="@+id/txtBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="TextView" />
+
+            <Button
+                    android:id="@+id/button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Button" />
+
+            <ImageView
+                    android:id="@+id/imageView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    tools:srcCompat="@tools:sample/backgrounds/scenic" />
+
         </LinearLayout>
     </LinearLayout>
 
