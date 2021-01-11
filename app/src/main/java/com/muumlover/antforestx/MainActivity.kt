@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, SeekBar.OnSeekBa
     private val screenBaseInfo: Unit
         get() {
             val metrics = DisplayMetrics()
-            windowManager.defaultDisplay.getMetrics(metrics)
+            windowManager.defaultDisplay.getRealMetrics(metrics)
             mScreenWidth = metrics.widthPixels
             mScreenHeight = metrics.heightPixels
             mScreenDensity = metrics.densityDpi
