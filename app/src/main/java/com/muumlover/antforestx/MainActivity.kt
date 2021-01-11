@@ -206,6 +206,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, SeekBar.OnSeekBa
                 if (file.exists()) {
                     screenFile = "lastBitmap"
                 }
+                testFinder()
             }
         }
         refreshView()

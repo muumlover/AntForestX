@@ -123,26 +123,27 @@ class AntForestService : AccessibilityService() {
             minRadius,
             maxRadius
         )
+        Thread.sleep(400)
         for (i in 0 until circles.cols()) {
             val vCircle = circles[0, i]
             val center = Point(vCircle[0], vCircle[1])
             if (center.y < 400 || center.y > 900) continue
             clickNodes(center.x, center.y) {
             }
-            Thread.sleep(1000)
+            Thread.sleep(100)
         }
     }
 
     private fun getScreen(): Mat {
         val screenBitmap = CaptureService.getScreenShot()
-        val screenBitmapHalf = cropBitmap(screenBitmap)
 
         val dir: File = getDir("screen", Context.MODE_PRIVATE)
         val file = File(dir, "lastBitmap.png")
         val fos = FileOutputStream(file)
-        screenBitmapHalf?.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+        screenBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
         fos.close();
 
+        val screenBitmapHalf = cropBitmap(screenBitmap)
         val screen = Mat()
         Utils.bitmapToMat(screenBitmapHalf, screen)
         return screen
